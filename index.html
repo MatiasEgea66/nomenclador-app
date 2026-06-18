@@ -439,7 +439,7 @@ tbody tr:last-child td{border-bottom:none}
   <!-- ========================= TAB HIST ========================= -->
   <div id="tab-hist" class="hidden">
     <div class="card">
-      <div class="card-title"><span class="icon">🗂️</span>Historial de Versiones</div>
+      <div class="card-title" style="justify-content:space-between"><span style="display:flex;align-items:center;gap:8px"><span class="icon">🗂️</span>Historial de Versiones</span><button class="btn btn-danger btn-sm" onclick="deleteAllVersions()">🗑️ Borrar todo</button></div>
       <div id="hist-no-master" class="hidden alert alert-warn">Primero cargá o creá un nomenclador maestro en la pestaña "Cargar / Actualizar".</div>
       <div id="hist-table-wrap">
         <div class="tbl-wrap">
@@ -1525,6 +1525,17 @@ function removeEquivalencia(i) {
 // ============================================================
 // HISTORIAL
 // ============================================================
+function deleteAllVersions() {
+  const deletable = S.historial.filter(h => h.fecha_hasta);
+  if (!deletable.length) { showToast('No hay versiones cerradas para eliminar.', 'warn'); return; }
+  if (!confirm(`¿Borrar todas las versiones del historial (${deletable.length})? La versión vigente no se borra.`)) return;
+  S.historial = S.historial.filter(h => !h.fecha_hasta);
+  S.archived = {};
+  saveState();
+  renderHistTable();
+  showToast(`Historial borrado (${deletable.length} versiones eliminadas).`, 'success');
+}
+
 function renderHistTable() {
   const noMaster = document.getElementById('hist-no-master');
   if (!S.loaded) {
