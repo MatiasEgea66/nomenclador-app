@@ -626,11 +626,7 @@ function checkDuplicateCodes(items) {
 // ============================================================
 function deleteVersion(idx) {
   const h = S.historial[idx];
-  if (!h.fecha_hasta) {
-    showToast('No podés eliminar la versión vigente. Primero generá una nueva actualización.', 'warn');
-    return;
-  }
-  if (!confirm(`¿Eliminar la versión ${h.version} (${formatDate(h.fecha_desde)} - ${formatDate(h.fecha_hasta)})?`)) return;
+  if (!confirm(`¿Eliminar la versión ${h.version} (${formatDate(h.fecha_desde)}${h.fecha_hasta ? ' - ' + formatDate(h.fecha_hasta) : ' — vigente'})?`)) return;
   const archKey = 'HIST_' + h.fecha_desde + '_' + h.fecha_hasta;
   S.historial.splice(idx, 1);
   // Re-number
@@ -1526,14 +1522,13 @@ function removeEquivalencia(i) {
 // HISTORIAL
 // ============================================================
 function deleteAllVersions() {
-  const deletable = S.historial.filter(h => h.fecha_hasta);
-  if (!deletable.length) { showToast('No hay versiones cerradas para eliminar.', 'warn'); return; }
-  if (!confirm(`¿Borrar todas las versiones del historial (${deletable.length})? La versión vigente no se borra.`)) return;
-  S.historial = S.historial.filter(h => !h.fecha_hasta);
+  if (!S.historial.length) { showToast('No hay versiones para eliminar.', 'warn'); return; }
+  if (!confirm(`¿Borrar todo el historial (${S.historial.length} versiones)?`)) return;
+  S.historial = [];
   S.archived = {};
   saveState();
   renderHistTable();
-  showToast(`Historial borrado (${deletable.length} versiones eliminadas).`, 'success');
+  showToast('Historial borrado.', 'success');
 }
 
 function renderHistTable() {
@@ -1583,9 +1578,7 @@ function renderHistTable() {
     const estadoBadge = isCurrent
       ? '<span class="badge badge-green">✅ En vigencia</span>'
       : '<span class="badge badge-gray">Cerrada</span>';
-    const deleteBtn = isCurrent
-      ? `<button class="btn btn-sm" style="opacity:.4;cursor:not-allowed;background:var(--surface-2);color:var(--text-3);border:1px solid var(--border)" title="No se puede eliminar la versión vigente" disabled>🗑️</button>`
-      : `<button class="btn btn-danger btn-sm btn-icon-only" onclick="deleteVersion(${h._histIdx})" title="Eliminar versión">🗑️</button>`;
+    const deleteBtn = `<button class="btn btn-danger btn-sm btn-icon-only" onclick="deleteVersion(${h._histIdx})" title="Eliminar versión">🗑️</button>`;
     const downloadBtn = isCurrent
       ? `<button class="btn btn-outline btn-sm" onclick="downloadVigente()">⬇️</button>`
       : (h._histIdx >= 0 ? `<button class="btn btn-ghost btn-sm" onclick="downloadHistorico(${h._histIdx})">⬇️</button>` : '');
