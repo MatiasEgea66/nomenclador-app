@@ -685,6 +685,7 @@ function crearNuevo() {
   S.loaded = true;
   S.masterBlob = null;
   S.newVigente = null;
+  saveState();
   onMasterLoaded();
   showAlert('Nomenclador nuevo creado. Ahora subí el archivo de actualización para importar los primeros precios.', 'info');
 }
