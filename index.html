@@ -640,11 +640,10 @@ function checkDuplicateCodes(items) {
 // ============================================================
 function deleteVersion(idx) {
   if (idx === -1) {
-    // versión vigente sintética (no tiene entrada en historial)
     if (!confirm('¿Eliminar la versión vigente? Se borrará el nomenclador actual.')) return;
     S.vigente = [];
     S.meta = { fecha_desde: '', fecha_hasta: '' };
-    S.loaded = false;
+    // no tocar S.loaded para que la fila desaparezca sin mostrar el warning
     saveState();
     renderHistTable();
     updateStatusBar();
@@ -1461,9 +1460,19 @@ function generarNomenclador() {
     `Nomenclador vigente desde ${formatDate(desde)}. ${descSuffix}`;
 
   saveState();
-  setStep(5);
   updateStatusBar();
-  document.getElementById('download-block').scrollIntoView({ behavior: 'smooth' });
+
+  // Descarga automática
+  downloadMaster();
+
+  // Toast con resumen
+  const msg = importing
+    ? `✅ Nomenclador generado — ${S.vigente.length.toLocaleString()} items importados.`
+    : `✅ Nomenclador generado — ${changed} precios actualizados de ${S.vigente.length.toLocaleString()} items.`;
+  showToast(msg, 'success');
+
+  // Resetear sección de actualización para la próxima carga
+  onMasterLoaded();
 }
 
 function downloadMaster() {
