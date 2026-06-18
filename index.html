@@ -1638,6 +1638,8 @@ function renderHistTable() {
   const noMaster = document.getElementById('hist-no-master');
   if (!S.loaded) {
     noMaster.classList.remove('hidden');
+    document.getElementById('hist-tbody').innerHTML = '';
+    document.getElementById('hist-empty').classList.add('hidden');
     return;
   }
   noMaster.classList.add('hidden');
