@@ -1,0 +1,1848 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestor de Nomencladores</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#eef2f7;color:#1e293b;min-height:100vh}
+:root{--blue:#2563eb;--blue-dark:#1d4ed8;--green:#16a34a;--red:#dc2626;--orange:#d97706;--gray:#64748b;--border:#e2e8f0;--card:#fff;--radius:10px}
+
+/* HEADER */
+.header{background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);color:#fff;padding:18px 32px;display:flex;align-items:center;gap:16px;box-shadow:0 2px 12px rgba(0,0,0,.18)}
+.header h1{font-size:1.35rem;font-weight:700;letter-spacing:-.02em}
+.header .sub{font-size:.82rem;opacity:.75;margin-top:2px}
+.logo{width:40px;height:40px;background:rgba(255,255,255,.15);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.4rem}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:12px}
+.sync-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-size:.78rem;font-weight:600;background:rgba(255,255,255,.15);color:#fff;cursor:default;border:1.5px solid rgba(255,255,255,.25)}
+.sync-badge.ok{background:rgba(22,163,74,.25);border-color:rgba(134,239,172,.5)}
+.sync-badge.err{background:rgba(220,38,38,.25);border-color:rgba(252,165,165,.5)}
+.sync-badge.busy{background:rgba(217,119,6,.2);border-color:rgba(253,211,77,.4)}
+.sync-badge.none{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2)}
+.btn-icon{width:36px;height:36px;border-radius:8px;border:1.5px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s}.btn-icon:hover{background:rgba(255,255,255,.2)}
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.hidden{display:none}
+.modal{background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.25);width:100%;max-width:560px;padding:32px;position:relative}
+.modal h2{font-size:1.15rem;font-weight:700;margin-bottom:6px}
+.modal .modal-sub{font-size:.84rem;color:var(--gray);margin-bottom:24px;line-height:1.5}
+.modal-close{position:absolute;top:16px;right:16px;background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--gray);line-height:1}
+.sql-block{background:#0f172a;color:#e2e8f0;border-radius:8px;padding:16px;font-family:'Courier New',monospace;font-size:.78rem;line-height:1.6;white-space:pre-wrap;margin:12px 0;position:relative}
+.copy-sql-btn{position:absolute;top:8px;right:8px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#e2e8f0;border-radius:5px;padding:3px 10px;font-size:.72rem;cursor:pointer}.copy-sql-btn:hover{background:rgba(255,255,255,.2)}
+
+/* TABS */
+.tabs{background:#fff;border-bottom:2px solid var(--border);display:flex;padding:0 32px;gap:4px}
+.tab{padding:14px 22px;cursor:pointer;font-weight:600;font-size:.88rem;color:var(--gray);border-bottom:3px solid transparent;margin-bottom:-2px;transition:all .15s}
+.tab:hover{color:#1e293b}
+.tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+
+/* MAIN */
+.main{max-width:1100px;margin:0 auto;padding:28px 24px}
+
+/* CARDS */
+.card{background:var(--card);border-radius:var(--radius);box-shadow:0 1px 4px rgba(0,0,0,.07);border:1px solid var(--border);padding:24px;margin-bottom:20px}
+.card-title{font-size:1rem;font-weight:700;color:#1e293b;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.card-title .icon{font-size:1.1rem}
+
+/* STATUS BAR */
+.status-bar{background:linear-gradient(90deg,#f0fdf4,#dcfce7);border:1px solid #86efac;border-radius:8px;padding:14px 20px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-bottom:20px}
+.status-bar.empty{background:#f8fafc;border-color:var(--border)}
+.stat{display:flex;flex-direction:column;gap:2px}
+.stat-label{font-size:.72rem;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:.05em}
+.stat-value{font-size:1.05rem;font-weight:700;color:#1e293b}
+.stat-value.green{color:var(--green)}
+.stat-value.orange{color:var(--orange)}
+.divider-v{width:1px;height:36px;background:var(--border)}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border:none;border-radius:7px;font-size:.87rem;font-weight:600;cursor:pointer;transition:all .15s;text-decoration:none}
+.btn-primary{background:var(--blue);color:#fff}.btn-primary:hover{background:var(--blue-dark)}
+.btn-success{background:var(--green);color:#fff}.btn-success:hover{background:#15803d}
+.btn-danger{background:var(--red);color:#fff}.btn-danger:hover{background:#b91c1c}
+.btn-outline{background:transparent;color:var(--blue);border:1.5px solid var(--blue)}.btn-outline:hover{background:#eff6ff}
+.btn-gray{background:#f1f5f9;color:#475569;border:1.5px solid var(--border)}.btn-gray:hover{background:#e2e8f0}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-sm{padding:6px 13px;font-size:.8rem}
+
+/* FILE DROP ZONE */
+.drop-zone{border:2px dashed #cbd5e1;border-radius:8px;padding:32px;text-align:center;cursor:pointer;transition:all .15s;background:#f8fafc}
+.drop-zone:hover,.drop-zone.drag{border-color:var(--blue);background:#eff6ff}
+.drop-zone .dz-icon{font-size:2.2rem;margin-bottom:10px}
+.drop-zone .dz-text{font-size:.9rem;color:var(--gray)}
+.drop-zone .dz-text strong{color:var(--blue);cursor:pointer}
+.drop-zone input[type=file]{display:none}
+.drop-zone.loaded{border-style:solid;border-color:#86efac;background:#f0fdf4}
+
+/* FORM */
+label{display:block;font-size:.82rem;font-weight:600;color:#475569;margin-bottom:5px}
+input[type=text],input[type=date],select{width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:.88rem;color:#1e293b;background:#fff;transition:border .15s}
+input[type=text]:focus,input[type=date]:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.form-group{margin-bottom:14px}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto;border-radius:8px;border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+thead th{background:#f8fafc;padding:10px 14px;text-align:left;font-weight:700;color:#475569;border-bottom:2px solid var(--border);white-space:nowrap}
+tbody tr{transition:background .1s}
+tbody tr:hover{background:#f8fafc}
+tbody td{padding:9px 14px;border-bottom:1px solid var(--border);color:#1e293b}
+tbody tr:last-child td{border-bottom:none}
+.badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:99px;font-size:.75rem;font-weight:700}
+.badge-green{background:#dcfce7;color:#166534}
+.badge-orange{background:#fef3c7;color:#92400e}
+.badge-blue{background:#dbeafe;color:#1e40af}
+.badge-gray{background:#f1f5f9;color:#475569}
+.badge-red{background:#fee2e2;color:#991b1b}
+
+/* COL SELECTOR */
+.col-selector{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.col-pill{padding:5px 13px;border-radius:99px;border:2px solid var(--border);background:#f8fafc;cursor:pointer;font-size:.8rem;font-weight:600;color:#475569;transition:all .12s}
+.col-pill:hover{border-color:#94a3b8}
+.col-pill.sel-code{border-color:#2563eb;background:#dbeafe;color:#1d4ed8}
+.col-pill.sel-price{border-color:#16a34a;background:#dcfce7;color:#15803d}
+
+/* PREVIEW TABLE */
+.change-new{color:var(--green);font-weight:700}
+.change-old{text-decoration:line-through;color:var(--gray);font-size:.8em}
+.change-same{color:var(--gray)}
+.change-notfound{color:var(--orange)}
+
+/* STEPS */
+.steps{display:flex;gap:0;margin-bottom:24px;counter-reset:step}
+.step{display:flex;align-items:center;gap:12px;flex:1;position:relative}
+.step:not(:last-child)::after{content:'';position:absolute;top:16px;left:calc(32px + 12px);right:0;height:2px;background:var(--border);z-index:0}
+.step.done:not(:last-child)::after{background:#86efac}
+.step-num{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;border:2px solid var(--border);background:#fff;color:var(--gray);flex-shrink:0;position:relative;z-index:1}
+.step.done .step-num{background:#dcfce7;border-color:#86efac;color:var(--green)}
+.step.active .step-num{background:#dbeafe;border-color:var(--blue);color:var(--blue)}
+.step-label{font-size:.78rem;font-weight:600;color:var(--gray);display:none}
+@media(min-width:600px){.step-label{display:block}}
+
+/* ALERT */
+.alert{padding:12px 16px;border-radius:8px;font-size:.86rem;margin-bottom:14px;display:flex;align-items:flex-start;gap:10px}
+.alert-info{background:#dbeafe;color:#1e40af;border:1px solid #93c5fd}
+.alert-success{background:#dcfce7;color:#166534;border:1px solid #86efac}
+.alert-warn{background:#fef3c7;color:#92400e;border:1px solid #fcd34d}
+.alert-error{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5}
+
+/* EMPTY STATE */
+.empty-state{text-align:center;padding:48px 24px;color:var(--gray)}
+.empty-state .icon{font-size:3rem;margin-bottom:12px}
+.empty-state p{font-size:.9rem;margin-bottom:20px}
+
+/* HIDDEN */
+.hidden{display:none!important}
+
+/* SECTION HEADER */
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.section-title{font-size:.95rem;font-weight:700;color:#1e293b}
+
+/* PAGINATION */
+.page-info{font-size:.8rem;color:var(--gray);margin-top:10px;text-align:right}
+
+/* Equivalencias inline form */
+.eq-form{display:flex;gap:10px;align-items:flex-end;margin-bottom:16px;flex-wrap:wrap}
+.eq-form .form-group{margin:0;flex:1;min-width:140px}
+
+/* Download block */
+.download-block{background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #86efac;border-radius:10px;padding:20px;text-align:center}
+.download-block .dl-title{font-size:1rem;font-weight:700;color:#166534;margin-bottom:6px}
+.download-block .dl-sub{font-size:.83rem;color:#166534;margin-bottom:14px}
+
+/* Highlight rows */
+.row-changed{background:#f0fdf4!important}
+.row-notfound{background:#fffbeb!important}
+.row-equiv{background:#eff6ff!important}
+
+/* scrollbar */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:#f1f5f9}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">📋</div>
+  <div>
+    <h1>Gestor de Nomencladores</h1>
+    <div class="sub">Actualización de precios con historial y equivalencias</div>
+  </div>
+  <div class="header-right">
+    <div id="sync-badge" class="sync-badge none" title="Estado de sincronización con Supabase">⬡ Sin configurar</div>
+    <button class="btn-icon" onclick="openSettings()" title="Configurar Supabase">⚙️</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('tab-update')">📥 Cargar / Actualizar</div>
+  <div class="tab" onclick="switchTab('tab-equiv')">🔄 Equivalencias</div>
+  <div class="tab" onclick="switchTab('tab-hist')">🗂️ Historial</div>
+</div>
+
+<div class="main">
+
+  <!-- ========================= TAB UPDATE ========================= -->
+  <div id="tab-update">
+
+    <!-- STATUS BAR -->
+    <div id="status-bar" class="status-bar empty">
+      <span style="color:var(--gray);font-size:.88rem">⚪ Sin nomenclador cargado — cargá un archivo maestro o creá uno nuevo</span>
+    </div>
+
+    <!-- LOAD MASTER -->
+    <div id="section-load" class="card">
+      <div class="card-title"><span class="icon">📂</span>Archivo Maestro</div>
+      <div class="form-row">
+        <div>
+          <div class="drop-zone" id="dz-master" onclick="document.getElementById('inp-master').click()" ondragover="dzDrag(event,'dz-master')" ondragleave="dzLeave('dz-master')" ondrop="dzDrop(event,'master')">
+            <input type="file" id="inp-master" accept=".xlsx,.xls" onchange="loadMaster(this.files[0])">
+            <div class="dz-icon">📋</div>
+            <div class="dz-text">Arrastrá el <strong>Archivo Maestro</strong> aquí<br><small>o hacé clic para seleccionar (.xlsx)</small></div>
+          </div>
+          <div style="text-align:center;margin-top:10px">
+            <span style="font-size:.8rem;color:var(--gray)">— o —</span>
+          </div>
+          <button class="btn btn-outline" style="width:100%;margin-top:10px;justify-content:center" onclick="crearNuevo()">➕ Crear nomenclador nuevo vacío</button>
+        </div>
+        <div style="font-size:.83rem;color:var(--gray);line-height:1.7;padding:8px">
+          <strong style="color:#1e293b;display:block;margin-bottom:8px">ℹ️ ¿Cómo funciona?</strong>
+          <p>1. La primera vez, <strong>creás un nomenclador nuevo</strong> e importás tus precios actuales.</p>
+          <p style="margin-top:6px">2. Cada vez que querés actualizar, <strong>subís el archivo maestro</strong> (el que descargaste la vez anterior) y la <strong>nueva lista de precios</strong>.</p>
+          <p style="margin-top:6px">3. El sistema genera un <strong>nuevo archivo maestro</strong> con precios actualizados e historial de versiones.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- UPDATE SECTION (visible only when master loaded) -->
+    <div id="section-update" class="hidden">
+
+      <!-- Steps indicator -->
+      <div class="steps">
+        <div class="step done" id="step1"><div class="step-num">✓</div><div class="step-label">Maestro cargado</div></div>
+        <div class="step" id="step2"><div class="step-num">2</div><div class="step-label">Subir actualización</div></div>
+        <div class="step" id="step3"><div class="step-num">3</div><div class="step-label">Mapear columnas</div></div>
+        <div class="step" id="step4"><div class="step-num">4</div><div class="step-label">Configurar fecha</div></div>
+        <div class="step" id="step5"><div class="step-num">5</div><div class="step-label">Revisar y generar</div></div>
+      </div>
+
+      <!-- Step 2: Upload update file(s) -->
+      <div class="card" id="card-step2">
+        <div class="card-title"><span class="icon">📤</span>Paso 2 — Subir archivo(s) de actualización</div>
+        <div class="drop-zone" id="dz-update" onclick="document.getElementById('inp-update').click()" ondragover="dzDrag(event,'dz-update')" ondragleave="dzLeave('dz-update')" ondrop="dzDrop(event,'update')">
+          <input type="file" id="inp-update" accept=".xlsx,.xls" multiple onchange="loadUpdateFiles(this.files)">
+          <div class="dz-icon">📊</div>
+          <div class="dz-text">Arrastrá uno o varios <strong>archivos de actualización</strong> aquí<br><small>o hacé clic para seleccionar (podés elegir múltiples .xlsx)</small></div>
+        </div>
+        <div id="upd-files-list" class="hidden" style="margin-top:12px"></div>
+      </div>
+
+      <!-- Step 3: Map columns -->
+      <div class="card hidden" id="card-step3">
+        <div class="card-title"><span class="icon">🔧</span>Paso 3 — Seleccionar columnas del archivo de actualización</div>
+        <div class="alert alert-info">Hacé clic en la columna que corresponde a cada campo. El archivo tiene <span id="upd-rows-count"></span> filas de datos.</div>
+
+        <div class="form-row" style="margin-bottom:12px">
+          <div>
+            <label>¿En qué fila están los encabezados?</label>
+            <select id="upd-header-row" onchange="parseUpdSheet()">
+              <option value="1">Fila 1 — los encabezados están en la primera fila</option>
+              <option value="2" selected>Fila 2 — hay un título en la fila 1 (formato APROSS)</option>
+              <option value="3">Fila 3 — hay dos filas de título antes</option>
+              <option value="0">Sin encabezado — los datos empiezan en la fila 1</option>
+            </select>
+          </div>
+          <div>
+            <label>Hoja del archivo a usar</label>
+            <select id="upd-sheet-sel" onchange="onUpdSheetChange()"></select>
+          </div>
+        </div>
+        <div id="detected-date-alert" class="hidden alert alert-success" style="margin-bottom:8px"></div>
+
+        <p style="font-size:.82rem;color:var(--gray);margin-bottom:8px">Hacé clic en las columnas para asignar: <span class="badge badge-blue">Código</span> y <span class="badge badge-green">Precio</span></p>
+        <div id="col-pills" class="col-selector"></div>
+        <div id="col-sel-status" style="margin-top:10px;font-size:.83rem;color:var(--gray)"></div>
+
+        <!-- Preview of update file -->
+        <div style="margin-top:16px">
+          <div class="tbl-wrap" id="upd-preview-wrap" style="max-height:220px;overflow-y:auto"></div>
+        </div>
+      </div>
+
+      <!-- Step 4: Date -->
+      <div class="card hidden" id="card-step4">
+        <div class="card-title"><span class="icon">📅</span>Paso 4 — Fecha de vigencia</div>
+        <div class="alert alert-info" style="margin-bottom:14px">
+          El nuevo nomenclador queda con <strong>fecha hasta abierta</strong>. Se cerrará automáticamente cuando cargues la próxima actualización.
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Fecha DESDE — inicio de vigencia del nuevo nomenclador</label>
+            <input type="date" id="inp-fecha-desde" oninput="updateFechaHasta()">
+          </div>
+          <div class="form-group">
+            <label style="color:var(--gray)">Fecha HASTA de la versión anterior <span style="font-weight:400">(se cierra automáticamente)</span></label>
+            <input type="date" id="inp-fecha-hasta-calc" disabled style="background:#f8fafc;color:var(--gray)">
+            <div style="font-size:.76rem;color:var(--gray);margin-top:4px">= día anterior a la fecha desde ingresada.</div>
+          </div>
+        </div>
+        <div id="fecha-warn" class="hidden alert alert-warn"></div>
+      </div>
+
+      <!-- Step 5: Preview and generate -->
+      <div class="card hidden" id="card-step5">
+        <div class="card-title"><span class="icon">👀</span>Paso 5 — Vista previa de cambios</div>
+
+        <!-- Diagnóstico de equivalencias -->
+        <details id="diag-equiv-block" style="margin-bottom:16px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+          <summary style="padding:10px 16px;cursor:pointer;background:#f8fafc;font-weight:600;font-size:.85rem;user-select:none">
+            🔍 Diagnóstico de equivalencias <span id="diag-summary-text"></span>
+          </summary>
+          <div style="padding:12px 16px">
+            <div class="tbl-wrap"><table id="diag-table">
+              <thead><tr><th>Mi código</th><th>Busca en actualización</th><th>¿Encontrado?</th><th>Precio encontrado</th></tr></thead>
+              <tbody id="diag-tbody"></tbody>
+            </table></div>
+          </div>
+        </details>
+
+        <div id="preview-summary" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px"></div>
+
+        <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <select id="filter-preview" onchange="renderPreviewTable()" style="width:auto;min-width:200px">
+            <option value="all">Mostrar todos</option>
+            <option value="changed">Solo actualizados</option>
+            <option value="notfound">Sin match en actualización</option>
+            <option value="equiv">Actualizados por equivalencia</option>
+          </select>
+          <input type="text" id="search-preview" placeholder="Buscar mi código, código equivalente o descripción..." style="width:auto;flex:1;min-width:180px" oninput="onSearchInput()">
+        </div>
+
+        <div class="tbl-wrap" id="preview-table-wrap" style="max-height:350px;overflow-y:auto"></div>
+        <div id="preview-page-info" class="page-info"></div>
+
+        <div style="margin-top:20px;text-align:center">
+          <button class="btn btn-success" style="font-size:.95rem;padding:12px 28px" onclick="generarNomenclador()">⚡ Generar nuevo nomenclador</button>
+        </div>
+      </div>
+
+      <!-- Download -->
+      <div class="hidden download-block" id="download-block">
+        <div class="dl-title">✅ Nomenclador generado correctamente</div>
+        <div class="dl-sub" id="dl-summary"></div>
+        <button class="btn btn-success" onclick="downloadMaster()">⬇️ Descargar Archivo Maestro (.xlsx)</button>
+        <div style="font-size:.78rem;color:#166534;margin-top:10px">Guardá este archivo — es el que vas a subir la próxima actualización.</div>
+      </div>
+
+    </div><!-- /section-update -->
+  </div><!-- /tab-update -->
+
+  <!-- ========================= TAB EQUIV ========================= -->
+  <div id="tab-equiv" class="hidden">
+    <div class="card">
+      <div class="card-title"><span class="icon">🔄</span>Equivalencias de Códigos</div>
+      <div class="alert alert-info" style="margin-bottom:16px">
+        Cuando el archivo de actualización usa un código diferente al tuyo, cargá la equivalencia acá. Por ejemplo: tu código <strong>10</strong> = su código <strong>1</strong>.
+      </div>
+
+      <div class="alert alert-success" style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <span>💾 Las equivalencias se guardan <strong>automáticamente en este navegador</strong> y se aplican a todas las actualizaciones. No se pierden al cerrar la página.</span>
+        <button class="btn btn-danger btn-sm" onclick="borrarTodasEquivalencias()">🗑️ Borrar todas</button>
+      </div>
+
+      <div id="equiv-form-block">
+        <div class="eq-form">
+          <div class="form-group">
+            <label>Mi código (en el nomenclador)</label>
+            <input type="text" id="eq-mi" placeholder="Ej: 10">
+          </div>
+          <div class="form-group">
+            <label>Su código (en la actualización)</label>
+            <input type="text" id="eq-su" placeholder="Ej: 1">
+          </div>
+          <div class="form-group" style="max-width:140px">
+            <label>Multiplicador <span style="font-weight:400;color:var(--gray)">(opcional)</span></label>
+            <input type="text" id="eq-mult" placeholder="Ej: 1.5" value="">
+          </div>
+          <button class="btn btn-primary" onclick="addEquivalencia()" style="align-self:flex-end">➕ Agregar</button>
+        </div>
+        <div style="font-size:.78rem;color:var(--gray);margin-bottom:12px">💡 El multiplicador se aplica al precio obtenido de la actualización. Dejalo vacío o en 1 si no aplica.</div>
+        <div id="equiv-error" class="hidden alert alert-error" style="margin-bottom:10px"></div>
+
+        <div id="equiv-table-wrap">
+          <div class="tbl-wrap">
+            <table id="equiv-table">
+              <thead><tr><th>Mi código</th><th>Su código (en actualización)</th><th>Multiplicador</th><th>Acciones</th></tr></thead>
+              <tbody id="equiv-tbody"></tbody>
+            </table>
+          </div>
+          <div id="equiv-empty" class="empty-state hidden">
+            <div class="icon">🔄</div>
+            <p>No hay equivalencias cargadas.<br>Agregá una arriba si tu nomenclador y el de actualización usan códigos distintos.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div><!-- /tab-equiv -->
+
+  <!-- ========================= TAB HIST ========================= -->
+  <div id="tab-hist" class="hidden">
+    <div class="card">
+      <div class="card-title"><span class="icon">🗂️</span>Historial de Versiones</div>
+      <div id="hist-no-master" class="hidden alert alert-warn">Primero cargá o creá un nomenclador maestro en la pestaña "Cargar / Actualizar".</div>
+      <div id="hist-table-wrap">
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Fecha Desde</th><th>Fecha Hasta</th><th>Items</th><th>Actualizados</th><th>Archivos de Actualización</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody id="hist-tbody"></tbody>
+          </table>
+        </div>
+        <div id="hist-empty" class="empty-state hidden">
+          <div class="icon">🗂️</div>
+          <p>No hay historial todavía.<br>Aparecerá aquí cada vez que generes una actualización.</p>
+        </div>
+      </div>
+    </div>
+  </div><!-- /tab-hist -->
+
+</div><!-- /main -->
+
+<!-- ========================= SETTINGS MODAL ========================= -->
+<div id="settings-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <button class="modal-close" onclick="closeSettings()">✕</button>
+    <h2>⚙️ Configuración de Supabase</h2>
+    <p class="modal-sub">Conectá tu base de datos Supabase para sincronizar los datos en la nube y acceder desde cualquier dispositivo.</p>
+
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:14px;margin-bottom:20px;font-size:.83rem;line-height:1.7">
+      <strong>Paso 1 — Creá el proyecto en Supabase</strong><br>
+      Entrá a <a href="https://supabase.com" target="_blank" style="color:var(--blue)">supabase.com</a> → New Project → completá nombre y contraseña.
+      <br><br>
+      <strong>Paso 2 — Creá la tabla</strong><br>
+      En tu proyecto: <strong>SQL Editor → New query</strong> → pegá este código y ejecutalo:
+      <div class="sql-block" id="sql-block">CREATE TABLE nomenclador_data (
+  key TEXT PRIMARY KEY,
+  value JSONB NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE nomenclador_data ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "allow_all" ON nomenclador_data
+  FOR ALL USING (true) WITH CHECK (true);<button class="copy-sql-btn" onclick="copySql()">Copiar</button></div>
+      <strong>Paso 3 — Copiá las credenciales</strong><br>
+      En tu proyecto: <strong>Project Settings → API</strong> → copiá la <em>Project URL</em> y la <em>anon public key</em>.
+    </div>
+
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Project URL</label>
+      <input type="text" id="sb-url" placeholder="https://xxxxxxxxxxxx.supabase.co" style="font-family:monospace;font-size:.85rem">
+    </div>
+    <div class="form-group" style="margin-bottom:20px">
+      <label>Anon Public Key</label>
+      <input type="text" id="sb-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." style="font-family:monospace;font-size:.85rem">
+    </div>
+    <div id="sb-error" class="hidden alert alert-error" style="margin-bottom:14px"></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="saveSupabaseConfig()">🔗 Conectar y sincronizar</button>
+      <button class="btn btn-gray" onclick="clearSupabaseConfig()">🗑️ Desconectar</button>
+      <button class="btn btn-gray" onclick="closeSettings()" style="margin-left:auto">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const S = {
+  loaded: false,
+  vigente: [],        // [{codigo, descripcion, precio}]
+  equivalencias: [],  // [{mi_codigo, su_codigo}]
+  historial: [],      // [{version, fecha_desde, fecha_hasta, cant_items, cant_actualizados}]
+  meta: { fecha_desde: '', fecha_hasta: '' },
+  archived: {},       // {'V_2024-01-01_2024-06-30': [{codigo,descripcion,precio}]}
+
+  // update file state
+  updFiles: [],       // [{name, workbook, sheetData}] — one per uploaded file
+  updWorkbook: null,  // first workbook (for sheet selector / column detection)
+  updSheetData: [],   // raw 2d array of selected sheet (first file, for preview)
+  updColCodigo: null,
+  updColPrecio: null,
+  headerRow: 2,       // 1-based row index of the header (0 = no header)
+  dataStartRow: 3,    // 1-based row index where data begins
+
+  // generated result
+  newVigente: null,
+  changeLog: [],      // [{codigo, descripcion, old_precio, new_precio, via_equiv, found}]
+  masterBlob: null,
+};
+
+// ============================================================
+// TABS
+// ============================================================
+function switchTab(id) {
+  ['tab-update','tab-equiv','tab-hist'].forEach(t => {
+    document.getElementById(t).classList.toggle('hidden', t !== id);
+  });
+  document.querySelectorAll('.tab').forEach((el,i) => {
+    el.classList.toggle('active', ['tab-update','tab-equiv','tab-hist'][i] === id);
+  });
+  if (id === 'tab-equiv') renderEquivTable();
+  if (id === 'tab-hist') renderHistTable();
+}
+
+// ============================================================
+// DRAG & DROP
+// ============================================================
+function dzDrag(e, id) { e.preventDefault(); document.getElementById(id).classList.add('drag'); }
+function dzLeave(id) { document.getElementById(id).classList.remove('drag'); }
+function dzDrop(e, target) {
+  e.preventDefault();
+  const id = target === 'master' ? 'dz-master' : 'dz-update';
+  dzLeave(id);
+  if (target === 'master') loadMaster(e.dataTransfer.files[0]);
+  else loadUpdateFiles(e.dataTransfer.files);
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function fmt(n) {
+  if (n === null || n === undefined || n === '') return '';
+  const num = parseFloat(String(n).replace(/[^\d.,]/g,'').replace(',','.'));
+  if (isNaN(num)) return String(n);
+  return num.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function parsePrice(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const s = String(v).replace(/\s/g,'').replace(/[^\d.,-]/g,'');
+  // handle comma as decimal separator
+  const clean = s.replace(/\.(?=\d{3}(?:[,.]|$))/g,'').replace(',','.');
+  const n = parseFloat(clean);
+  return isNaN(n) ? null : n;
+}
+function normalizeCode(v) {
+  return String(v === null || v === undefined ? '' : v).trim().toUpperCase();
+}
+function addDays(dateStr, days) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0,10);
+}
+function formatDate(s) {
+  if (!s) return '—';
+  const [y,m,d] = s.split('-');
+  return `${d}/${m}/${y}`;
+}
+function showAlert(msg, type='info') {
+  const div = document.createElement('div');
+  div.className = `alert alert-${type}`;
+  div.textContent = msg;
+  document.querySelector('.main').prepend(div);
+  setTimeout(() => div.remove(), 4000);
+}
+
+// ============================================================
+// READ EXCEL
+// ============================================================
+function readXlsx(file, cb) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
+    cb(wb);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function sheetToArr(ws) {
+  // returns 2d array of raw values
+  return XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:''});
+}
+
+// ============================================================
+// LOAD MASTER FILE
+// ============================================================
+function loadMaster(file) {
+  if (!file) return;
+  readXlsx(file, wb => {
+    try {
+      // Required sheet: NOMENCLADOR COMPLETO or VIGENTE
+      const MAIN_SHEET = wb.SheetNames.includes('NOMENCLADOR COMPLETO') ? 'NOMENCLADOR COMPLETO'
+                       : wb.SheetNames.includes('VIGENTE') ? 'VIGENTE'
+                       : null;
+      if (!MAIN_SHEET) {
+        alert('El archivo no contiene la hoja "NOMENCLADOR COMPLETO" ni "VIGENTE". ¿Es el archivo correcto?');
+        return;
+      }
+      // Leer la hoja y detectar columnas flexiblemente
+      const rawRows = XLSX.utils.sheet_to_json(wb.Sheets[MAIN_SHEET], {raw:true, defval:''});
+
+      // Detectar nombres de columnas reales
+      const colKeys = rawRows.length > 0 ? Object.keys(rawRows[0]) : [];
+      const findCol = (keywords) => colKeys.find(k => keywords.some(kw => k.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').includes(kw)));
+
+      const colCodigo = findCol(['codigo','cod','code','item','art','prestacion']);
+      const colDesc   = findCol(['descripcion','descripción','descrip','desc','nombre','detalle','prestacion']);
+      const colPrecio = findCol(['precio','price','valor','importe','monto','costo','honorario','arancel']);
+
+      S.vigente = rawRows.map(r => ({
+        codigo:      normalizeCode(colCodigo ? r[colCodigo] : ''),
+        descripcion: String(colDesc   ? r[colDesc]   : ''),
+        precio:      parsePrice(colPrecio ? r[colPrecio] : null)
+      })).filter(r => r.codigo !== '');
+
+      // Avisar si no se detectaron columnas o no hay datos
+      if (!colCodigo) {
+        const available = colKeys.join(', ');
+        alert(`⚠️ No se encontró columna de código en "${MAIN_SHEET}".\n\nColumnas disponibles: ${available}\n\nVerificá que el archivo tenga una columna llamada CODIGO, Código, COD, etc.`);
+        return;
+      }
+      if (S.vigente.length === 0) {
+        alert(`⚠️ La hoja "${MAIN_SHEET}" no tiene datos o todos los códigos están vacíos.`);
+        return;
+      }
+
+      // META
+      S.meta = { fecha_desde: '', fecha_hasta: '' };
+      if (wb.SheetNames.includes('META')) {
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets['META'], {raw:true});
+        if (rows.length > 0) {
+          S.meta.fecha_desde = rows[0]['FECHA_DESDE'] ?? rows[0]['fecha_desde'] ?? '';
+          S.meta.fecha_hasta = rows[0]['FECHA_HASTA'] ?? rows[0]['fecha_hasta'] ?? '';
+        }
+      }
+
+      // EQUIVALENCIAS — leer del archivo si existen, si no conservar las del navegador
+      if (wb.SheetNames.includes('EQUIVALENCIAS')) {
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets['EQUIVALENCIAS'], {raw:true});
+        const fromFile = rows.map(r => ({
+          mi_codigo: normalizeCode(r['MI_CODIGO'] ?? r['mi_codigo'] ?? ''),
+          su_codigo: normalizeCode(r['SU_CODIGO'] ?? r['su_codigo'] ?? ''),
+          multiplicador: parseFloat(r['MULTIPLICADOR'] ?? r['multiplicador'] ?? 1) || 1
+        })).filter(r => r.mi_codigo && r.su_codigo);
+        if (fromFile.length > 0) {
+          S.equivalencias = fromFile;
+          saveEquivalencias(); // sincronizar navegador con lo del archivo
+        }
+        // si la hoja existe pero está vacía → no tocar las del navegador
+      }
+      // si no hay hoja EQUIVALENCIAS → conservar S.equivalencias tal como está (cargadas del navegador)
+
+      // HISTORIAL
+      S.historial = [];
+      if (wb.SheetNames.includes('HISTORIAL')) {
+        S.historial = XLSX.utils.sheet_to_json(wb.Sheets['HISTORIAL'], {raw:true}).map(r => {
+          const archStr = r['ARCHIVOS_ACTUALIZACION'] ?? r['archivos_actualizacion'] ?? '';
+          const archivos = archStr ? String(archStr).split(' | ').map(s => s.trim()).filter(Boolean) : [];
+          return {
+            version: r['VERSION'] ?? r['version'] ?? '',
+            fecha_desde: r['FECHA_DESDE'] ?? r['fecha_desde'] ?? '',
+            fecha_hasta: r['FECHA_HASTA'] ?? r['fecha_hasta'] ?? '',
+            cant_items: r['CANT_ITEMS'] ?? r['cant_items'] ?? 0,
+            cant_actualizados: r['CANT_ACTUALIZADOS'] ?? r['cant_actualizados'] ?? 0,
+            archivos_actualizacion: archivos
+          };
+        });
+      }
+
+      // ARCHIVED sheets
+      S.archived = {};
+      wb.SheetNames.forEach(name => {
+        if (name.startsWith('HIST_')) {
+          S.archived[name] = XLSX.utils.sheet_to_json(wb.Sheets[name], {raw:true}).map(r => ({
+            codigo: normalizeCode(r['CODIGO'] ?? r['codigo'] ?? ''),
+            descripcion: String(r['DESCRIPCION'] ?? r['descripcion'] ?? ''),
+            precio: parsePrice(r['PRECIO'] ?? r['precio'])
+          }));
+        }
+      });
+
+      S.loaded = true;
+      S.masterBlob = null;
+      S.newVigente = null;
+      saveState();
+      onMasterLoaded();
+      // Confirmar carga en consola para debug
+      console.log(`[Nomenclador] Cargados ${S.vigente.length} items. Columna código: "${colCodigo}", precio: "${colPrecio}". Primeros códigos:`, S.vigente.slice(0,5).map(r=>r.codigo));
+    } catch(err) {
+      alert('Error al leer el archivo: ' + err.message);
+    }
+  });
+}
+
+function crearNuevo() {
+  S.vigente = [];
+  // no resetear equivalencias — conservar las guardadas en el navegador
+  S.historial = [];
+  S.meta = { fecha_desde: '', fecha_hasta: '' };
+  S.archived = {};
+  S.loaded = true;
+  S.masterBlob = null;
+  S.newVigente = null;
+  onMasterLoaded();
+  showAlert('Nomenclador nuevo creado. Ahora subí el archivo de actualización para importar los primeros precios.', 'info');
+}
+
+function onMasterLoaded() {
+  document.getElementById('section-load').classList.add('hidden');
+  document.getElementById('section-update').classList.remove('hidden');
+  document.getElementById('download-block').classList.add('hidden');
+  // hide result cards
+  ['card-step3','card-step4','card-step5'].forEach(id => document.getElementById(id).classList.add('hidden'));
+  // reset update state
+  S.updFiles = []; S.updWorkbook = null; S.updSheetData = []; S.updColCodigo = null; S.updColPrecio = null;
+  document.getElementById('dz-update').classList.remove('loaded');
+  document.getElementById('dz-update').querySelector('.dz-text').innerHTML =
+    'Arrastrá uno o varios <strong>archivos de actualización</strong> aquí<br><small>o hacé clic para seleccionar (podés elegir múltiples .xlsx)</small>';
+  document.getElementById('upd-files-list').classList.add('hidden');
+  updateStatusBar();
+  setStep(2);
+}
+
+// ============================================================
+// STATUS BAR
+// ============================================================
+function updateStatusBar() {
+  const sb = document.getElementById('status-bar');
+  if (!S.loaded) {
+    sb.innerHTML = '<span style="color:var(--gray);font-size:.88rem">⚪ Sin nomenclador cargado — cargá un archivo maestro o creá uno nuevo</span>';
+    sb.className = 'status-bar empty';
+    return;
+  }
+  const desde = S.meta.fecha_desde ? formatDate(S.meta.fecha_desde) : '—';
+  const hasta = S.meta.fecha_hasta ? formatDate(S.meta.fecha_hasta) : 'En vigencia';
+  const eqCount = S.equivalencias.length;
+  sb.className = 'status-bar';
+  sb.innerHTML = `
+    <div class="stat"><div class="stat-label">Items</div><div class="stat-value green">${S.vigente.length.toLocaleString()}</div></div>
+    <div class="divider-v"></div>
+    <div class="stat"><div class="stat-label">Vigente desde</div><div class="stat-value">${desde}</div></div>
+    <div class="divider-v"></div>
+    <div class="stat"><div class="stat-label">Vigente hasta</div><div class="stat-value ${S.meta.fecha_hasta ? '' : 'green'}">${hasta}</div></div>
+    <div class="divider-v"></div>
+    <div class="stat"><div class="stat-label">Equivalencias</div><div class="stat-value">${eqCount}</div></div>
+    <div class="divider-v"></div>
+    <div class="stat"><div class="stat-label">Versiones</div><div class="stat-value">${S.historial.length}</div></div>
+    <div style="margin-left:auto">
+      <button class="btn btn-gray btn-sm" onclick="resetMaster()">🔄 Cambiar archivo</button>
+    </div>
+  `;
+}
+
+function resetMaster() {
+  if (!confirm('¿Querés cargar un archivo maestro diferente? Se descartarán los cambios no guardados.')) return;
+  S.loaded = false;
+  document.getElementById('section-load').classList.remove('hidden');
+  document.getElementById('section-update').classList.add('hidden');
+  document.getElementById('download-block').classList.add('hidden');
+  document.getElementById('inp-master').value = '';
+  document.getElementById('inp-update').value = '';
+  updateStatusBar();
+}
+
+// ============================================================
+// STEPS
+// ============================================================
+function setStep(active) {
+  for (let i = 1; i <= 5; i++) {
+    const el = document.getElementById('step'+i);
+    if (!el) continue;
+    el.className = 'step' + (i < active ? ' done' : i === active ? ' active' : '');
+    if (i < active) el.querySelector('.step-num').textContent = '✓';
+    else el.querySelector('.step-num').textContent = i;
+  }
+}
+
+// ============================================================
+// LOAD UPDATE FILES (supports multiple)
+// ============================================================
+function loadUpdateFiles(fileList) {
+  if (!fileList || !fileList.length) return;
+  const files = Array.from(fileList);
+  S.updFiles = [];
+  S.updColCodigo = null;
+  S.updColPrecio = null;
+  S.newVigente = null;
+
+  let loaded = 0;
+  files.forEach((file, idx) => {
+    readXlsx(file, wb => {
+      S.updFiles[idx] = { name: file.name, workbook: wb };
+      loaded++;
+      if (loaded === files.length) onAllFilesLoaded();
+    });
+  });
+}
+
+function onAllFilesLoaded() {
+  // Use first file for sheet selector & column detection
+  S.updWorkbook = S.updFiles[0].workbook;
+
+  const sel = document.getElementById('upd-sheet-sel');
+  sel.innerHTML = S.updWorkbook.SheetNames.map(n => `<option value="${n}">${n}</option>`).join('');
+
+  // Show file list
+  const listEl = document.getElementById('upd-files-list');
+  listEl.innerHTML = S.updFiles.map((f, i) =>
+    `<div class="alert alert-success" style="margin-bottom:6px;padding:8px 14px">
+      📄 <strong>${f.name}</strong>
+      <span style="float:right;cursor:pointer;color:var(--red)" onclick="removeUpdFile(${i})">✕ Quitar</span>
+    </div>`
+  ).join('') + (S.updFiles.length > 1
+    ? `<div style="font-size:.78rem;color:var(--gray);margin-top:4px">⚠️ Si un código aparece en más de un archivo, se usa el precio del último archivo que lo contenga.</div>`
+    : '');
+  listEl.classList.remove('hidden');
+
+  document.getElementById('dz-update').classList.add('loaded');
+  document.getElementById('dz-update').querySelector('.dz-text').innerHTML =
+    `<strong>✅ ${S.updFiles.length} archivo${S.updFiles.length>1?'s':''} cargado${S.updFiles.length>1?'s':''}</strong> — Arrastrá más para agregar`;
+
+  parseUpdSheet();
+  document.getElementById('card-step3').classList.remove('hidden');
+  setStep(3);
+  document.getElementById('card-step4').classList.remove('hidden');
+  document.getElementById('card-step5').classList.add('hidden');
+  document.getElementById('download-block').classList.add('hidden');
+}
+
+function removeUpdFile(idx) {
+  S.updFiles.splice(idx, 1);
+  if (!S.updFiles.length) {
+    // Reset to empty state
+    document.getElementById('dz-update').classList.remove('loaded');
+    document.getElementById('dz-update').querySelector('.dz-text').innerHTML =
+      'Arrastrá uno o varios <strong>archivos de actualización</strong> aquí<br><small>o hacé clic para seleccionar (podés elegir múltiples .xlsx)</small>';
+    document.getElementById('upd-files-list').classList.add('hidden');
+    document.getElementById('card-step3').classList.add('hidden');
+    document.getElementById('card-step5').classList.add('hidden');
+    document.getElementById('inp-update').value = '';
+    return;
+  }
+  S.updWorkbook = S.updFiles[0].workbook;
+  onAllFilesLoaded();
+}
+
+function onUpdSheetChange() {
+  S.updColCodigo = null;
+  S.updColPrecio = null;
+  parseUpdSheet();
+}
+
+function parseUpdSheet() {
+  if (!S.updWorkbook) return;
+  const sheetName = document.getElementById('upd-sheet-sel').value;
+  S.updSheetData = sheetToArr(S.updWorkbook.Sheets[sheetName]);
+  const hRowSel = parseInt(document.getElementById('upd-header-row').value);
+  S.headerRow = hRowSel;
+  S.dataStartRow = hRowSel === 0 ? 1 : hRowSel + 1;
+  // Count total data rows across all files (using same sheet name if available)
+  let totalRows = 0;
+  S.updFiles.forEach(f => {
+    const ws = f.workbook.Sheets[sheetName] || f.workbook.Sheets[f.workbook.SheetNames[0]];
+    const rows = sheetToArr(ws);
+    totalRows += Math.max(0, rows.length - (S.dataStartRow - 1));
+  });
+  document.getElementById('upd-rows-count').textContent =
+    totalRows + ' filas de datos' + (S.updFiles.length > 1 ? ` (entre ${S.updFiles.length} archivos)` : '');
+  renderColPills();
+  renderUpdatePreview();
+  autoDetectColumns();
+  tryDetectVigencia();
+}
+
+function tryDetectVigencia() {
+  // Try to find a date in the Vigencia column or in title rows
+  const alertEl = document.getElementById('detected-date-alert');
+  // Look in title rows (before header) for a date pattern
+  let detectedDate = null;
+
+  // Check title rows
+  const titleRows = S.updSheetData.slice(0, Math.max(0, S.headerRow - 1));
+  for (const row of titleRows) {
+    for (const cell of row) {
+      const d = extractDate(cell);
+      if (d) { detectedDate = d; break; }
+    }
+    if (detectedDate) break;
+  }
+
+  // If not found in title, try data cells in Vigencia-like column
+  if (!detectedDate && S.updSheetData.length > S.dataStartRow - 1) {
+    const headerIdx = S.headerRow > 0 ? S.headerRow - 1 : -1;
+    const headers = headerIdx >= 0 ? S.updSheetData[headerIdx] : [];
+    const vigCol = headers.findIndex(h => /vig/i.test(String(h)));
+    if (vigCol >= 0) {
+      const firstDataRow = S.updSheetData[S.dataStartRow - 1];
+      if (firstDataRow) detectedDate = extractDate(firstDataRow[vigCol]);
+    }
+  }
+
+  if (detectedDate) {
+    alertEl.innerHTML = `📅 Se detectó fecha de vigencia en el archivo: <strong>${formatDate(detectedDate)}</strong> &nbsp;
+      <button class="btn btn-primary btn-sm" onclick="applyDetectedDate('${detectedDate}')">Usar esta fecha</button>`;
+    alertEl.classList.remove('hidden');
+  } else {
+    alertEl.classList.add('hidden');
+  }
+}
+
+function extractDate(val) {
+  if (!val) return null;
+  // Excel serial date number
+  if (typeof val === 'number' && val > 40000 && val < 60000) {
+    const d = XLSX.SSF.parse_date_code(val);
+    if (d) return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+  }
+  // Date object
+  if (val instanceof Date) {
+    return val.toISOString().slice(0,10);
+  }
+  // String patterns: DD/MM/YYYY or YYYY-MM-DD
+  const s = String(val);
+  const m1 = s.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (m1) return `${m1[3]}-${m1[2].padStart(2,'0')}-${m1[1].padStart(2,'0')}`;
+  const m2 = s.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (m2) return `${m2[1]}-${m2[2].padStart(2,'0')}-${m2[3].padStart(2,'0')}`;
+  return null;
+}
+
+function applyDetectedDate(dateStr) {
+  document.getElementById('inp-fecha-desde').value = dateStr;
+  updateFechaHasta();
+  document.getElementById('card-step4').scrollIntoView({ behavior: 'smooth' });
+}
+
+function getHeaderRow() {
+  // Returns the header row array (0-indexed from updSheetData), or generated labels
+  if (S.headerRow === 0) return S.updSheetData[0] ? S.updSheetData[0].map((_,i) => 'Col '+(i+1)) : [];
+  return S.updSheetData[S.headerRow - 1] || [];
+}
+
+function autoDetectColumns() {
+  if (!S.updSheetData.length) return;
+  const header = getHeaderRow();
+  const codKw = ['cod','code','codigo','código','item','art'];
+  const priceKw = ['prec','price','precio','valor','importe','monto','cost'];
+  header.forEach((h, i) => {
+    const hs = String(h).toLowerCase().replace(/[^a-záéíóú]/g,'');
+    if (S.updColCodigo === null && codKw.some(k => hs.includes(k))) S.updColCodigo = i;
+    if (S.updColPrecio === null && priceKw.some(k => hs.includes(k))) S.updColPrecio = i;
+  });
+  updateColPills();
+  checkColumnsSelected();
+}
+
+function renderColPills() {
+  if (!S.updSheetData.length) return;
+  const header = getHeaderRow();
+  const wrap = document.getElementById('col-pills');
+  wrap.innerHTML = header.map((h, i) => `
+    <div class="col-pill" id="pill-${i}" onclick="toggleColPill(${i})">${h || 'Col '+(i+1)}</div>
+  `).join('');
+}
+
+function updateColPills() {
+  document.querySelectorAll('.col-pill').forEach((el, i) => {
+    el.className = 'col-pill' +
+      (i === S.updColCodigo ? ' sel-code' : '') +
+      (i === S.updColPrecio ? ' sel-price' : '');
+  });
+  const status = document.getElementById('col-sel-status');
+  const parts = [];
+  if (S.updColCodigo !== null) parts.push(`Código → columna ${S.updColCodigo+1}`);
+  if (S.updColPrecio !== null) parts.push(`Precio → columna ${S.updColPrecio+1}`);
+  status.innerHTML = parts.length
+    ? '✅ ' + parts.join(' | ')
+    : 'Hacé clic en una columna para asignarla. Primero clic = Código, segundo clic = Precio.';
+}
+
+let pillClickState = 'code'; // 'code' or 'price'
+function toggleColPill(i) {
+  if (pillClickState === 'code') {
+    S.updColCodigo = i;
+    pillClickState = 'price';
+  } else {
+    if (i === S.updColCodigo) { S.updColCodigo = null; pillClickState = 'code'; }
+    else { S.updColPrecio = i; pillClickState = 'code'; }
+  }
+  updateColPills();
+  checkColumnsSelected();
+}
+
+function checkColumnsSelected() {
+  if (S.updColCodigo !== null && S.updColPrecio !== null) {
+    renderPreviewFull();
+  }
+}
+
+function renderUpdatePreview() {
+  renderColPills();
+  updateColPills();
+  const wrap = document.getElementById('upd-preview-wrap');
+  if (!S.updSheetData.length) { wrap.innerHTML = '<p class="change-same" style="padding:12px">Sin datos</p>'; return; }
+
+  const headerArr = getHeaderRow();
+  const cols = headerArr.length || (S.updSheetData[0] || []).length;
+  // Show rows: title rows (grayed), header row (bold), first data rows
+  let html = '<table><thead><tr>';
+  headerArr.forEach(h => { html += `<th>${h || ''}</th>`; });
+  html += '</tr></thead><tbody>';
+
+  // Show title rows
+  const titleRows = S.headerRow > 1 ? S.updSheetData.slice(0, S.headerRow - 1) : [];
+  titleRows.forEach(r => {
+    html += '<tr style="background:#f8fafc;color:var(--gray);font-style:italic">';
+    for (let i = 0; i < cols; i++) html += `<td>${r[i] ?? ''}</td>`;
+    html += '</tr>';
+  });
+
+  // Show up to 6 data rows
+  const dataRows = S.updSheetData.slice(S.dataStartRow - 1, S.dataStartRow - 1 + 6);
+  dataRows.forEach(r => {
+    html += '<tr>';
+    for (let i = 0; i < cols; i++) html += `<td>${r[i] ?? ''}</td>`;
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+// ============================================================
+// DATE
+// ============================================================
+function updateFechaHasta() {
+  const desde = document.getElementById('inp-fecha-desde').value;
+  if (desde) {
+    const hasta = addDays(desde, -1);
+    document.getElementById('inp-fecha-hasta-calc').value = hasta;
+  } else {
+    document.getElementById('inp-fecha-hasta-calc').value = '';
+  }
+  // validate
+  const warn = document.getElementById('fecha-warn');
+  if (S.meta.fecha_desde && desde && desde <= S.meta.fecha_desde) {
+    warn.textContent = '⚠️ La fecha desde debe ser posterior a la fecha de inicio de la versión actual (' + formatDate(S.meta.fecha_desde) + ').';
+    warn.classList.remove('hidden');
+  } else {
+    warn.classList.add('hidden');
+  }
+  renderPreviewFull();
+}
+
+// ============================================================
+// PREVIEW
+// ============================================================
+let previewCache = [];
+
+function renderPreviewFull() {
+  if (S.updColCodigo === null || S.updColPrecio === null) return;
+  if (!S.vigente.length && S.updSheetData.length === 0) return;
+
+  // Build update map {codigo_normalizado: {precio, source}} — merging all files
+  const updMap = {};
+  const sheetName = document.getElementById('upd-sheet-sel').value;
+  const dataStart0 = S.dataStartRow - 1;  // 0-based
+  S.updFiles.forEach(f => {
+    const ws = f.workbook.Sheets[sheetName] || f.workbook.Sheets[f.workbook.SheetNames[0]];
+    const rows = sheetToArr(ws);
+    for (let i = dataStart0; i < rows.length; i++) {
+      const row = rows[i];
+      const cod = normalizeCode(row[S.updColCodigo]);
+      const precio = parsePrice(row[S.updColPrecio]);
+      if (cod) updMap[cod] = { precio, source: f.name };
+    }
+  });
+
+  // Build equivalencias map: mi_codigo -> {su_codigo, multiplicador}
+  const equivMap = {};
+  S.equivalencias.forEach(e => {
+    equivMap[normalizeCode(e.mi_codigo)] = {
+      su_codigo: normalizeCode(e.su_codigo),
+      multiplicador: e.multiplicador || 1
+    };
+  });
+
+  // --- DIAGNÓSTICO DE EQUIVALENCIAS ---
+  {
+    const diagTbody = document.getElementById('diag-tbody');
+    let found_count = 0;
+    const diagRows = S.equivalencias.map(e => {
+      const miCod = normalizeCode(e.mi_codigo);
+      const suCod = normalizeCode(e.su_codigo);
+      const inUpdMap = suCod in updMap;
+      const precio = inUpdMap ? updMap[suCod].precio : null;
+      const miCodInVigente = S.vigente.some(v => normalizeCode(v.codigo) === miCod);
+      if (inUpdMap) found_count++;
+      return { miCod, suCod, inUpdMap, precio, miCodInVigente };
+    });
+    diagTbody.innerHTML = diagRows.map(d => `
+      <tr style="background:${d.inUpdMap ? '#f0fdf4' : '#fff7ed'}">
+        <td><strong>${d.miCod}</strong>${!d.miCodInVigente ? ' <span class="badge badge-orange" style="font-size:.7rem">no está en nomenclador</span>' : ''}</td>
+        <td>${d.suCod}</td>
+        <td>${d.inUpdMap
+          ? '<span class="badge badge-green">✅ Sí</span>'
+          : '<span class="badge badge-orange">❌ No encontrado en actualización</span>'}</td>
+        <td>${d.inUpdMap && d.precio !== null ? '$ ' + fmt(d.precio) : '—'}</td>
+      </tr>`).join('');
+    const total = diagRows.length;
+    document.getElementById('diag-summary-text').textContent =
+      `— ${found_count} de ${total} encontradas en el archivo de actualización`;
+    // Auto-expand if none found
+    if (found_count === 0 && total > 0) document.getElementById('diag-equiv-block').open = true;
+  }
+
+  // For new vigente (if current is empty, import all from update)
+  if (S.vigente.length === 0) {
+    // Import mode: all items from update file
+    // Import mode: build from all files merged
+    const sheetName2 = document.getElementById('upd-sheet-sel').value;
+    const dataStart2 = S.dataStartRow - 1;
+    S.newVigente = [];
+    previewCache = [];
+    // Use the merged updMap (already built above), preserving order from files
+    S.updFiles.forEach(f => {
+      const ws = f.workbook.Sheets[sheetName2] || f.workbook.Sheets[f.workbook.SheetNames[0]];
+      const rows = sheetToArr(ws);
+      for (let i = dataStart2; i < rows.length; i++) {
+        const row = rows[i];
+        const cod = normalizeCode(row[S.updColCodigo]);
+        if (!cod) continue;
+        const precio = parsePrice(row[S.updColPrecio]);
+        let desc = '';
+        row.forEach((v,j) => {
+          if (j !== S.updColCodigo && j !== S.updColPrecio && String(v).trim()) desc = desc || String(v);
+        });
+        // avoid duplicates (last file wins)
+        const existing = S.newVigente.findIndex(r => r.codigo === cod);
+        if (existing >= 0) { S.newVigente[existing].precio = precio; previewCache[existing].new_precio = precio; }
+        else {
+          S.newVigente.push({ codigo: cod, descripcion: desc, precio });
+          previewCache.push({ codigo: cod, descripcion: desc, old_precio: null, new_precio: precio, via_equiv: false, found: true, source: f.name });
+        }
+      }
+    });
+  } else {
+    // Update mode
+    previewCache = [];
+    S.newVigente = S.vigente.map(item => {
+      const cod = normalizeCode(item.codigo);
+      const eq = equivMap[cod] || null;
+      const suCod = eq ? eq.su_codigo : cod;
+      const mult = eq ? eq.multiplicador : 1;
+      const via_equiv = !!eq;
+      const found = suCod in updMap;
+      let new_precio = found ? updMap[suCod].precio : item.precio;
+      if (found && mult !== 1 && new_precio !== null) new_precio = Math.round(new_precio * mult * 100) / 100;
+      previewCache.push({
+        codigo: item.codigo,
+        descripcion: item.descripcion,
+        old_precio: item.precio,
+        new_precio: new_precio,
+        via_equiv: via_equiv && found,
+        su_codigo: via_equiv ? suCod : null,   // código usado en el archivo de actualización
+        mult: via_equiv && found && mult !== 1 ? mult : null,
+        found: found,
+        source: found ? updMap[suCod].source : null
+      });
+      return { codigo: item.codigo, descripcion: item.descripcion, precio: new_precio };
+    });
+  }
+
+  // Summary
+  const changed = previewCache.filter(r => r.found && r.new_precio !== r.old_precio).length;
+  const notfound = previewCache.filter(r => !r.found).length;
+  const via_equiv = previewCache.filter(r => r.via_equiv).length;
+  const same = previewCache.filter(r => r.found && r.new_precio === r.old_precio).length;
+  const importing = S.vigente.length === 0;
+
+  document.getElementById('preview-summary').innerHTML = importing
+    ? `<div class="badge badge-green" style="font-size:.85rem;padding:6px 14px">📥 Importando ${previewCache.length} items desde el archivo</div>`
+    : `
+    <span class="badge badge-green" style="font-size:.85rem;padding:6px 14px">✅ Actualizados: ${changed}</span>
+    <span class="badge badge-gray" style="font-size:.85rem;padding:6px 14px">➖ Sin cambio: ${same}</span>
+    <span class="badge badge-orange" style="font-size:.85rem;padding:6px 14px">⚠️ No encontrados: ${notfound}</span>
+    <span class="badge badge-blue" style="font-size:.85rem;padding:6px 14px">🔄 Por equivalencia: ${via_equiv}</span>
+  `;
+
+  document.getElementById('card-step5').classList.remove('hidden');
+  setStep(4);
+  renderPreviewTable();
+}
+
+const PAGE_SIZE = 100;
+let previewPage = 0;
+
+function renderPreviewTable() {
+  const filter = document.getElementById('filter-preview').value;
+  const search = document.getElementById('search-preview').value.toLowerCase();
+  const importing = S.vigente.length === 0;
+
+  let rows = previewCache.filter(r => {
+    const matchSearch = !search ||
+      r.codigo.toLowerCase().includes(search) ||
+      r.descripcion.toLowerCase().includes(search) ||
+      (r.su_codigo && r.su_codigo.toLowerCase().includes(search));  // buscar por código equivalente
+    if (!matchSearch) return false;
+    if (filter === 'changed') return r.found && r.new_precio !== r.old_precio;
+    if (filter === 'notfound') return !r.found;
+    if (filter === 'equiv') return r.via_equiv;
+    return true;
+  });
+
+  const total = rows.length;
+  previewPage = Math.min(previewPage, Math.max(0, Math.ceil(total/PAGE_SIZE)-1));
+  const paged = rows.slice(previewPage*PAGE_SIZE, (previewPage+1)*PAGE_SIZE);
+
+  let html = '<table><thead><tr>';
+  if (importing) {
+    html += '<th>Código</th><th>Descripción</th><th>Precio a importar</th></tr></thead><tbody>';
+    paged.forEach(r => {
+      html += `<tr><td>${r.codigo}</td><td>${r.descripcion}</td><td class="change-new">$ ${fmt(r.new_precio)}</td></tr>`;
+    });
+  } else {
+    html += '<th>Mi código</th><th>Descripción</th><th>Precio anterior</th><th>Precio nuevo</th><th>Estado</th></tr></thead><tbody>';
+    paged.forEach(r => {
+      const changed = r.found && r.new_precio !== r.old_precio;
+      const rowClass = r.via_equiv ? 'row-equiv' : changed ? 'row-changed' : !r.found ? 'row-notfound' : '';
+      let statusBadge = '';
+      if (!r.found) statusBadge = '<span class="badge badge-orange">Sin match</span>';
+      else if (r.via_equiv) statusBadge = `<span class="badge badge-blue">Equiv${r.mult ? ' ×'+r.mult : ''}</span>`;
+      else if (changed) statusBadge = '<span class="badge badge-green">Actualizado</span>';
+      else statusBadge = '<span class="badge badge-gray">Sin cambio</span>';
+
+      // Show su_codigo under mi_codigo when via equivalence
+      const codigoCell = r.su_codigo
+        ? `${r.codigo}<br><small style="color:var(--gray);font-weight:400">→ ${r.su_codigo}</small>`
+        : r.codigo;
+
+      html += `<tr class="${rowClass}">
+        <td>${codigoCell}</td>
+        <td>${r.descripcion}</td>
+        <td class="${changed?'change-old':''}">$ ${fmt(r.old_precio)}</td>
+        <td class="${changed?'change-new':r.found?'':'change-notfound'}">$ ${fmt(r.new_precio)}</td>
+        <td>${statusBadge}</td>
+      </tr>`;
+    });
+  }
+  html += '</tbody></table>';
+  if (paged.length === 0) {
+    document.getElementById('preview-table-wrap').innerHTML =
+      `<div style="padding:24px;text-align:center;color:var(--gray)">
+        🔍 Sin resultados para "<strong>${document.getElementById('search-preview').value}</strong>"
+        <br><small style="margin-top:6px;display:block">El buscador busca por mi código, código equivalente y descripción.</small>
+      </div>`;
+  } else {
+    document.getElementById('preview-table-wrap').innerHTML = html;
+  }
+
+  let pageHtml = `Mostrando ${paged.length} de ${total} items`;
+  if (total > PAGE_SIZE) {
+    pageHtml += ` &nbsp; <button class="btn btn-gray btn-sm" onclick="prevPage()" ${previewPage===0?'disabled':''}>← Ant</button>`;
+    pageHtml += ` &nbsp; Página ${previewPage+1}/${Math.ceil(total/PAGE_SIZE)} &nbsp;`;
+    pageHtml += `<button class="btn btn-gray btn-sm" onclick="nextPage()" ${(previewPage+1)*PAGE_SIZE>=total?'disabled':''}>Sig →</button>`;
+  }
+  document.getElementById('preview-page-info').innerHTML = pageHtml;
+}
+
+function onSearchInput() {
+  // Cuando se escribe en el buscador, quitar el filtro para no ocultar resultados
+  if (document.getElementById('search-preview').value.trim()) {
+    document.getElementById('filter-preview').value = 'all';
+  }
+  previewPage = 0;
+  renderPreviewTable();
+}
+
+function prevPage() { if (previewPage > 0) { previewPage--; renderPreviewTable(); } }
+function nextPage() { previewPage++; renderPreviewTable(); }
+
+// ============================================================
+// GENERATE
+// ============================================================
+function generarNomenclador() {
+  const desde = document.getElementById('inp-fecha-desde').value;
+  if (!desde) { alert('Ingresá la fecha desde para continuar.'); return; }
+  if (!S.newVigente || !S.newVigente.length) { alert('No hay datos para generar.'); return; }
+
+  const fechaHastaAnterior = addDays(desde, -1);
+  const changed = previewCache.filter(r => r.found && r.new_precio !== r.old_precio).length;
+  const importing = S.vigente.length === 0 && previewCache.every(r => r.old_precio === null);
+
+  // Archive previous vigente
+  if (S.vigente.length > 0) {
+    const prevDesde = S.meta.fecha_desde || 'inicio';
+    const archKey = 'HIST_' + prevDesde + '_' + fechaHastaAnterior;
+    S.archived[archKey] = S.vigente.map(r => ({...r}));
+
+    // Add historial entry for previous
+    S.historial.push({
+      version: S.historial.length + 1,
+      fecha_desde: S.meta.fecha_desde || '',
+      fecha_hasta: fechaHastaAnterior,
+      cant_items: S.vigente.length,
+      cant_actualizados: changed,
+      archivos_actualizacion: S.updFiles.map(f => f.name)
+    });
+  }
+
+  // Update state
+  S.vigente = S.newVigente;
+  S.meta.fecha_desde = desde;
+  S.meta.fecha_hasta = '';  // open (vigente)
+
+  // Build workbook
+  const wb = XLSX.utils.book_new();
+
+  // NOMENCLADOR COMPLETO sheet (main sheet)
+  const vigRows = S.vigente.map(r => ({ CODIGO: r.codigo, DESCRIPCION: r.descripcion, PRECIO: r.precio }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(vigRows), 'NOMENCLADOR COMPLETO');
+
+  // META sheet
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{ FECHA_DESDE: S.meta.fecha_desde, FECHA_HASTA: S.meta.fecha_hasta }]), 'META');
+
+  // EQUIVALENCIAS sheet
+  const eqRows = S.equivalencias.map(e => ({ MI_CODIGO: e.mi_codigo, SU_CODIGO: e.su_codigo, MULTIPLICADOR: e.multiplicador || 1 }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(eqRows.length ? eqRows : [{ MI_CODIGO: '', SU_CODIGO: '' }]), 'EQUIVALENCIAS');
+
+  // HISTORIAL sheet
+  const histRows = S.historial.map(h => ({
+    VERSION: h.version,
+    FECHA_DESDE: h.fecha_desde,
+    FECHA_HASTA: h.fecha_hasta,
+    CANT_ITEMS: h.cant_items,
+    CANT_ACTUALIZADOS: h.cant_actualizados,
+    ARCHIVOS_ACTUALIZACION: (h.archivos_actualizacion || []).join(' | ')
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(histRows.length ? histRows : [{}]), 'HISTORIAL');
+
+  // Archived sheets
+  Object.entries(S.archived).forEach(([key, rows]) => {
+    const archRows = rows.map(r => ({ CODIGO: r.codigo, DESCRIPCION: r.descripcion, PRECIO: r.precio }));
+    // truncate sheet name to 31 chars
+    const sheetName = key.slice(0, 31);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(archRows), sheetName);
+  });
+
+  // Style header rows (basic)
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  S.masterBlob = new Blob([wbout], { type: 'application/octet-stream' });
+
+  // Update UI
+  document.getElementById('download-block').classList.remove('hidden');
+  const descSuffix = importing
+    ? `Se importaron ${S.vigente.length} items.`
+    : `Se actualizaron ${changed} precios de ${S.vigente.length} items.`;
+  document.getElementById('dl-summary').textContent =
+    `Nomenclador vigente desde ${formatDate(desde)}. ${descSuffix}`;
+
+  saveState();
+  setStep(5);
+  updateStatusBar();
+  document.getElementById('download-block').scrollIntoView({ behavior: 'smooth' });
+}
+
+function downloadMaster() {
+  if (!S.masterBlob) return;
+  const desde = (S.meta.fecha_desde || 'nuevo').replace(/-/g,'');
+  const filename = `nomenclador_maestro_${desde}.xlsx`;
+  const url = URL.createObjectURL(S.masterBlob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ============================================================
+// EQUIVALENCIAS
+// ============================================================
+function renderEquivTable() {
+  const tbody = document.getElementById('equiv-tbody');
+  const empty = document.getElementById('equiv-empty');
+  if (!S.equivalencias.length) {
+    tbody.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+  tbody.innerHTML = S.equivalencias.map((e, i) => {
+    const mult = e.multiplicador && e.multiplicador !== 1 ? e.multiplicador : null;
+    return `<tr>
+      <td><strong>${e.mi_codigo}</strong></td>
+      <td>${e.su_codigo}</td>
+      <td>${mult ? `<span class="badge badge-blue">× ${mult}</span>` : '<span class="badge badge-gray">× 1</span>'}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="removeEquivalencia(${i})">🗑️ Eliminar</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function addEquivalencia() {
+  const mi = normalizeCode(document.getElementById('eq-mi').value);
+  const su = normalizeCode(document.getElementById('eq-su').value);
+  const multRaw = document.getElementById('eq-mult').value.trim().replace(',', '.');
+  const mult = multRaw === '' ? 1 : parseFloat(multRaw);
+  const errEl = document.getElementById('equiv-error');
+  if (!mi || !su) {
+    errEl.textContent = 'Completá los campos Código y Su código.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  if (isNaN(mult) || mult <= 0) {
+    errEl.textContent = 'El multiplicador debe ser un número positivo.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  if (S.equivalencias.some(e => e.mi_codigo === mi)) {
+    errEl.textContent = `Ya existe una equivalencia para el código "${mi}".`;
+    errEl.classList.remove('hidden');
+    return;
+  }
+  errEl.classList.add('hidden');
+  S.equivalencias.push({ mi_codigo: mi, su_codigo: su, multiplicador: mult });
+  document.getElementById('eq-mi').value = '';
+  document.getElementById('eq-su').value = '';
+  document.getElementById('eq-mult').value = '';
+  saveEquivalencias();
+  renderEquivTable();
+  S.newVigente = null;
+  if (S.updColCodigo !== null && S.updColPrecio !== null) renderPreviewFull();
+}
+
+function borrarTodasEquivalencias() {
+  if (!S.equivalencias.length) return;
+  if (!confirm(`¿Borrar las ${S.equivalencias.length} equivalencias guardadas?`)) return;
+  S.equivalencias = [];
+  saveEquivalencias();
+  renderEquivTable();
+}
+
+function removeEquivalencia(i) {
+  S.equivalencias.splice(i, 1);
+  saveEquivalencias();
+  renderEquivTable();
+  if (S.updColCodigo !== null && S.updColPrecio !== null) renderPreviewFull();
+}
+
+// ============================================================
+// HISTORIAL
+// ============================================================
+function renderHistTable() {
+  const noMaster = document.getElementById('hist-no-master');
+  if (!S.loaded) {
+    noMaster.classList.remove('hidden');
+    return;
+  }
+  noMaster.classList.add('hidden');
+  const tbody = document.getElementById('hist-tbody');
+  const empty = document.getElementById('hist-empty');
+
+  // Build full list including current vigente
+  const allVersions = [...S.historial];
+  if (S.loaded && S.vigente.length) {
+    allVersions.push({
+      version: allVersions.length + 1,
+      fecha_desde: S.meta.fecha_desde,
+      fecha_hasta: S.meta.fecha_hasta,
+      cant_items: S.vigente.length,
+      cant_actualizados: '—',
+      is_current: true
+    });
+  }
+
+  if (!allVersions.length) {
+    tbody.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  tbody.innerHTML = allVersions.slice().reverse().map((h, i) => {
+    const isCurrent = !!h.is_current;
+    const archivos = h.archivos_actualizacion && h.archivos_actualizacion.length
+      ? h.archivos_actualizacion.map(f => `<span class="badge badge-blue" style="display:inline-block;margin:1px 2px;font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${f}">${f}</span>`).join('')
+      : (isCurrent ? '<span class="badge badge-gray">Importación inicial</span>' : '—');
+    return `<tr>
+      <td>${h.version}</td>
+      <td>${formatDate(h.fecha_desde)}</td>
+      <td>${h.fecha_hasta ? formatDate(h.fecha_hasta) : '<span class="badge badge-green">En vigencia</span>'}</td>
+      <td>${(h.cant_items||0).toLocaleString()}</td>
+      <td>${h.cant_actualizados !== '—' ? h.cant_actualizados : '—'}</td>
+      <td style="max-width:240px">${archivos}</td>
+      <td>${isCurrent ? '<span class="badge badge-green">✅ Vigente</span>' : '<span class="badge badge-gray">Histórica</span>'}</td>
+      <td>${isCurrent ? `<button class="btn btn-outline btn-sm" onclick="downloadVigente()">⬇️ Descargar</button>` : `<button class="btn btn-gray btn-sm" onclick="downloadHistorico(${h.version-1})">⬇️ Descargar</button>`}</td>
+    </tr>`;
+  }).join('');
+}
+
+function downloadVigente() {
+  const wb = XLSX.utils.book_new();
+  const rows = S.vigente.map(r => ({ CODIGO: r.codigo, DESCRIPCION: r.descripcion, PRECIO: r.precio }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'NOMENCLADOR COMPLETO');
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([wbout], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const desde = (S.meta.fecha_desde || 'vigente').replace(/-/g,'');
+  a.href = url; a.download = `nomenclador_vigente_${desde}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadHistorico(idx) {
+  const h = S.historial[idx];
+  const key = Object.keys(S.archived)[idx];
+  const archivedRows = key ? S.archived[key] : null;
+  if (!archivedRows) { alert('Datos históricos no disponibles en esta sesión. Recargá el archivo maestro.'); return; }
+  const wb = XLSX.utils.book_new();
+  const rows = archivedRows.map(r => ({ CODIGO: r.codigo, DESCRIPCION: r.descripcion, PRECIO: r.precio }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'VIGENTE');
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([wbout], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const desde = (h.fecha_desde || '').replace(/-/g,'');
+  const hasta = (h.fecha_hasta || '').replace(/-/g,'');
+  a.href = url; a.download = `nomenclador_v${h.version}_${desde}_${hasta}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ============================================================
+// SUPABASE
+// ============================================================
+const LS_SB_URL = 'nomenclador_sb_url';
+const LS_SB_KEY = 'nomenclador_sb_key';
+let sbClient = null;
+
+function getSbCredentials() {
+  return {
+    url: localStorage.getItem(LS_SB_URL) || '',
+    key: localStorage.getItem(LS_SB_KEY) || ''
+  };
+}
+
+function initSupabase(url, key) {
+  try {
+    sbClient = supabase.createClient(url, key);
+    return true;
+  } catch(e) {
+    sbClient = null;
+    return false;
+  }
+}
+
+function setSyncBadge(state, text) {
+  const el = document.getElementById('sync-badge');
+  el.className = 'sync-badge ' + state;
+  el.textContent = { ok:'🟢', err:'🔴', busy:'🔄', none:'⬡' }[state] + ' ' + text;
+}
+
+async function saveToSupabase() {
+  if (!sbClient) return;
+  setSyncBadge('busy', 'Guardando…');
+  try {
+    // Build rows to upsert
+    const rows = [
+      { key: 'vigente',      value: S.vigente,      updated_at: new Date().toISOString() },
+      { key: 'historial',    value: S.historial,    updated_at: new Date().toISOString() },
+      { key: 'meta',         value: S.meta,         updated_at: new Date().toISOString() },
+      { key: 'equivalencias',value: S.equivalencias,updated_at: new Date().toISOString() },
+    ];
+    // Archived versions as individual rows
+    Object.entries(S.archived).forEach(([k, v]) => {
+      rows.push({ key: 'arch_' + k, value: v, updated_at: new Date().toISOString() });
+    });
+
+    const { error } = await sbClient.from('nomenclador_data').upsert(rows, { onConflict: 'key' });
+    if (error) throw error;
+    setSyncBadge('ok', 'Sincronizado');
+  } catch(e) {
+    setSyncBadge('err', 'Error al guardar');
+    console.error('[Supabase] Error al guardar:', e.message);
+  }
+}
+
+async function loadFromSupabase() {
+  if (!sbClient) return false;
+  setSyncBadge('busy', 'Cargando…');
+  try {
+    const { data, error } = await sbClient.from('nomenclador_data').select('key, value');
+    if (error) throw error;
+    if (!data || !data.length) { setSyncBadge('ok', 'Vacío'); return false; }
+
+    const map = {};
+    data.forEach(r => { map[r.key] = r.value; });
+
+    if (!map['vigente'] || !map['vigente'].length) { setSyncBadge('ok', 'Sin datos'); return false; }
+
+    S.vigente      = map['vigente']       || [];
+    S.historial    = map['historial']     || [];
+    S.meta         = map['meta']          || { fecha_desde: '', fecha_hasta: '' };
+    S.equivalencias= map['equivalencias'] || [];
+
+    // Rebuild archived from arch_ prefixed rows
+    S.archived = {};
+    Object.entries(map).forEach(([k, v]) => {
+      if (k.startsWith('arch_HIST_')) {
+        S.archived[k.replace('arch_', '')] = v;
+      }
+    });
+
+    S.loaded = true;
+    setSyncBadge('ok', 'Sincronizado');
+    return true;
+  } catch(e) {
+    setSyncBadge('err', 'Error al cargar');
+    console.error('[Supabase] Error al cargar:', e.message);
+    return false;
+  }
+}
+
+function openSettings() {
+  const { url, key } = getSbCredentials();
+  document.getElementById('sb-url').value = url;
+  document.getElementById('sb-key').value = key;
+  document.getElementById('sb-error').classList.add('hidden');
+  document.getElementById('settings-modal').classList.remove('hidden');
+}
+
+function closeSettings() {
+  document.getElementById('settings-modal').classList.add('hidden');
+}
+
+async function saveSupabaseConfig() {
+  const url = document.getElementById('sb-url').value.trim();
+  const key = document.getElementById('sb-key').value.trim();
+  const errEl = document.getElementById('sb-error');
+  errEl.classList.add('hidden');
+
+  if (!url || !key) {
+    errEl.textContent = 'Completá los dos campos.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  if (!url.includes('supabase.co')) {
+    errEl.textContent = 'La URL no parece ser de Supabase (debe terminar en .supabase.co).';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  localStorage.setItem(LS_SB_URL, url);
+  localStorage.setItem(LS_SB_KEY, key);
+  initSupabase(url, key);
+  setSyncBadge('busy', 'Conectando…');
+
+  // Test connection by trying to load
+  const ok = await loadFromSupabase();
+  if (ok) {
+    // Restore equivalencias from Supabase (already set in S.equivalencias)
+    saveEquivalencias(); // sync to localStorage too
+    renderEquivTable();
+    renderHistTable();
+    updateStatusBar();
+    closeSettings();
+    showToast(`✅ Conectado a Supabase. ${S.vigente.length.toLocaleString()} items cargados desde la nube.`, 'success');
+  } else {
+    // Connection worked but no data yet — save current state if any
+    if (S.vigente.length) {
+      await saveToSupabase();
+      showToast('✅ Conectado. Datos subidos a Supabase.', 'success');
+    } else {
+      showToast('✅ Conectado a Supabase. Cargá tu archivo maestro para empezar.', 'success');
+    }
+    setSyncBadge('ok', 'Conectado');
+    closeSettings();
+  }
+}
+
+function clearSupabaseConfig() {
+  if (!confirm('¿Desconectar Supabase? Los datos locales se mantienen, pero no se sincronizará más.')) return;
+  localStorage.removeItem(LS_SB_URL);
+  localStorage.removeItem(LS_SB_KEY);
+  sbClient = null;
+  setSyncBadge('none', 'Sin configurar');
+  closeSettings();
+}
+
+function copySql() {
+  const sql = `CREATE TABLE nomenclador_data (\n  key TEXT PRIMARY KEY,\n  value JSONB NOT NULL,\n  updated_at TIMESTAMPTZ DEFAULT NOW()\n);\n\nALTER TABLE nomenclador_data ENABLE ROW LEVEL SECURITY;\n\nCREATE POLICY "allow_all" ON nomenclador_data\n  FOR ALL USING (true) WITH CHECK (true);`;
+  navigator.clipboard.writeText(sql).then(() => {
+    const btn = document.querySelector('.copy-sql-btn');
+    btn.textContent = '✓ Copiado';
+    setTimeout(() => btn.textContent = 'Copiar', 2000);
+  });
+}
+
+function showToast(msg, type='success') {
+  const t = document.createElement('div');
+  t.className = 'alert alert-' + type;
+  t.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;max-width:380px;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+  t.innerHTML = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 5000);
+}
+
+// ============================================================
+// PERSISTENCIA (localStorage)
+// ============================================================
+const LS_KEY       = 'nomenclador_equivalencias_v1';
+const LS_KEY_STATE = 'nomenclador_state_v1';
+
+function saveEquivalencias() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(S.equivalencias)); } catch(e) {}
+  // Sync to Supabase
+  if (sbClient) {
+    sbClient.from('nomenclador_data').upsert(
+      [{ key: 'equivalencias', value: S.equivalencias, updated_at: new Date().toISOString() }],
+      { onConflict: 'key' }
+    ).then(({ error }) => {
+      if (!error) setSyncBadge('ok', 'Sincronizado');
+    });
+  }
+}
+
+function loadEquivalenciasFromStorage() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length) {
+        S.equivalencias = parsed.map(e => ({
+          mi_codigo: e.mi_codigo,
+          su_codigo: e.su_codigo,
+          multiplicador: parseFloat(e.multiplicador) || 1
+        }));
+        return S.equivalencias.length;
+      }
+    }
+  } catch(e) {}
+  return 0;
+}
+
+function saveState() {
+  try {
+    const payload = {
+      vigente:       S.vigente,
+      historial:     S.historial,
+      meta:          S.meta,
+      archived:      S.archived,
+      savedAt:       new Date().toISOString()
+    };
+    localStorage.setItem(LS_KEY_STATE, JSON.stringify(payload));
+  } catch(e) {
+    console.warn('No se pudo guardar el estado en localStorage:', e);
+  }
+  // Also push to Supabase (async, non-blocking)
+  saveToSupabase();
+}
+
+function loadStateFromStorage() {
+  try {
+    const raw = localStorage.getItem(LS_KEY_STATE);
+    if (!raw) return false;
+    const p = JSON.parse(raw);
+    if (!p || !Array.isArray(p.vigente) || !p.vigente.length) return false;
+    S.vigente   = p.vigente;
+    S.historial = Array.isArray(p.historial) ? p.historial : [];
+    S.meta      = p.meta || { fecha_desde: '', fecha_hasta: '' };
+    S.archived  = p.archived || {};
+    S.loaded    = true;
+    return p;
+  } catch(e) {}
+  return false;
+}
+
+// Equivalencias por defecto (se cargan si el navegador no tiene ninguna guardada)
+const DEFAULT_EQUIVALENCIAS = [
+  { mi_codigo: '990001', su_codigo: '430101', multiplicador: 1 },
+  { mi_codigo: '990002', su_codigo: '400107', multiplicador: 1 },
+  { mi_codigo: '990003', su_codigo: '400101', multiplicador: 1 },
+  { mi_codigo: '990004', su_codigo: '400103', multiplicador: 1 },
+  { mi_codigo: '990018', su_codigo: '420132', multiplicador: 3 },
+  { mi_codigo: '990019', su_codigo: '400107', multiplicador: 1 },
+  { mi_codigo: '990020', su_codigo: '350403', multiplicador: 1 },
+  { mi_codigo: '990022', su_codigo: '230301', multiplicador: 1 },
+  { mi_codigo: '990023', su_codigo: '110217', multiplicador: 1 },
+  { mi_codigo: '990024', su_codigo: '440101', multiplicador: 1 },
+  { mi_codigo: '990025', su_codigo: '430201', multiplicador: 1 },
+  { mi_codigo: '990026', su_codigo: '420132', multiplicador: 3 },
+  { mi_codigo: '990028', su_codigo: '122001', multiplicador: 1 },
+  { mi_codigo: '990029', su_codigo: '50408',  multiplicador: 1 },
+  { mi_codigo: '990030', su_codigo: '120302', multiplicador: 1 },
+  { mi_codigo: '990031', su_codigo: '120303', multiplicador: 1 },
+  { mi_codigo: '990032', su_codigo: '120304', multiplicador: 1 },
+  { mi_codigo: '990033', su_codigo: '120305', multiplicador: 1 },
+  { mi_codigo: '990034', su_codigo: '70620',  multiplicador: 1 },
+];
+
+// Init — equivalencias
+let restoredCount = loadEquivalenciasFromStorage();
+if (restoredCount === 0) {
+  S.equivalencias = DEFAULT_EQUIVALENCIAS.map(e => ({...e}));
+  saveEquivalencias();
+  restoredCount = S.equivalencias.length;
+}
+
+// Init — Supabase (try to init if credentials saved)
+(async () => {
+  const { url, key } = getSbCredentials();
+  if (url && key) {
+    initSupabase(url, key);
+    setSyncBadge('busy', 'Cargando…');
+    const fromCloud = await loadFromSupabase();
+    if (fromCloud) {
+      // Equivalencias might have come from Supabase — sync to localStorage
+      if (S.equivalencias.length) {
+        saveEquivalencias();
+        renderEquivTable();
+      }
+      renderHistTable();
+      updateStatusBar();
+      showToast(`☁️ <strong>Datos cargados desde Supabase</strong> — ${S.vigente.length.toLocaleString()} items vigentes.`, 'success');
+      return;
+    }
+  } else {
+    setSyncBadge('none', 'Sin configurar');
+  }
+
+  // Fall back to localStorage state
+  const restoredState = loadStateFromStorage();
+  if (restoredState) {
+    renderHistTable();
+    updateStatusBar();
+    const d = new Date(restoredState.savedAt);
+    const fmt = d.toLocaleDateString('es-AR') + ' ' + d.toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' });
+    setTimeout(() => {
+      const notice = document.createElement('div');
+      notice.className = 'alert alert-success';
+      notice.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:999;max-width:380px;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+      notice.innerHTML = `
+        💾 <strong>Sesión restaurada (local)</strong> — ${restoredState.vigente.length.toLocaleString()} items.<br>
+        <small style="color:#555">Guardado el ${fmt}</small><br>
+        <div style="margin-top:8px;display:flex;gap:8px">
+          <button class="btn btn-outline btn-sm" onclick="this.closest('div.alert').remove()">✓ OK</button>
+          <button class="btn btn-danger btn-sm" onclick="borrarEstadoGuardado(this)">🗑️ Borrar</button>
+        </div>`;
+      document.body.appendChild(notice);
+    }, 600);
+  } else {
+    updateStatusBar();
+  }
+})();
+
+function borrarEstadoGuardado(btn) {
+  if (!confirm('¿Borrar la sesión guardada? Se perderá el historial y el nomenclador vigente almacenado en el navegador.')) return;
+  try { localStorage.removeItem(LS_KEY_STATE); } catch(e) {}
+  S.vigente = []; S.historial = []; S.meta = { fecha_desde: '', fecha_hasta: '' }; S.archived = {}; S.loaded = false;
+  renderHistTable();
+  updateStatusBar();
+  btn.closest('div.alert').remove();
+}
+</script>
+</body>
+</html>
