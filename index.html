@@ -504,6 +504,20 @@ CREATE POLICY "allow_all" ON nomenclador_data
 
 <div id="toast-container"></div>
 
+<!-- MODAL DUPLICADOS -->
+<div id="dupes-modal" class="modal-overlay hidden">
+  <div class="modal" style="max-width:680px">
+    <h2>⚠️ Códigos duplicados</h2>
+    <p class="modal-sub">Estos códigos aparecen más de una vez en el archivo maestro. Renombrá los duplicados (a partir de la 2ª ocurrencia) para poder continuar.</p>
+    <div id="dupes-table-wrap" style="max-height:380px;overflow-y:auto;margin-bottom:16px"></div>
+    <div id="dupes-apply-error" class="hidden alert alert-error" style="margin-bottom:12px"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-primary" onclick="applyDupeRenames()">✓ Aplicar y continuar</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('dupes-modal').classList.add('hidden')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ============================================================
 // STATE
@@ -694,8 +708,8 @@ function loadMaster(file) {
       // Verificar duplicados
       const dupes = checkDuplicateCodes(S.vigente);
       if (dupes.length > 0) {
-        const ejemplos = dupes.slice(0, 5).join(', ');
-        showToast(`⚠️ El archivo maestro tiene ${dupes.length} código(s) duplicado(s). Ejemplos: ${ejemplos}`, 'warn');
+        openDupesModal();
+        return;
       }
 
       // META
@@ -1114,7 +1128,11 @@ function renderPreviewFull() {
       const row = rows[i];
       const cod = normalizeCode(row[S.updColCodigo]);
       const precio = parsePrice(row[S.updColPrecio]);
-      if (cod) updMap[cod] = { precio, source: f.name };
+      if (cod) {
+        let desc = '';
+        row.forEach((v, j) => { if (j !== S.updColCodigo && j !== S.updColPrecio && String(v).trim()) desc = desc || String(v); });
+        updMap[cod] = { precio, source: f.name, descripcion: desc };
+      }
     }
   });
 
@@ -1221,7 +1239,7 @@ function renderPreviewFull() {
       const entry = updMap[cod];
       previewCache.push({
         codigo: cod,
-        descripcion: '',
+        descripcion: entry.descripcion || '',
         old_precio: null,
         new_precio: entry.precio,
         via_equiv: false,
@@ -1231,7 +1249,7 @@ function renderPreviewFull() {
         source: entry.source,
         is_new: true
       });
-      S.newVigente.push({ codigo: cod, descripcion: '', precio: entry.precio });
+      S.newVigente.push({ codigo: cod, descripcion: entry.descripcion || '', precio: entry.precio });
     });
   }
 
@@ -1529,6 +1547,80 @@ function deleteAllVersions() {
   saveState();
   renderHistTable();
   showToast('Historial borrado.', 'success');
+}
+
+// ============================================================
+// MODAL DUPLICADOS
+// ============================================================
+function openDupesModal() {
+  // Encontrar todos los códigos duplicados con sus índices
+  const seen = {};
+  const dupeIndices = []; // [{codigo, idx, descripcion, precio}] — solo los duplicados (2da+ ocurrencia)
+  S.vigente.forEach((r, idx) => {
+    if (seen[r.codigo] !== undefined) {
+      dupeIndices.push({ codigo: r.codigo, idx, descripcion: r.descripcion, precio: r.precio });
+    } else {
+      seen[r.codigo] = idx;
+    }
+  });
+
+  const wrap = document.getElementById('dupes-table-wrap');
+  wrap.innerHTML = `
+    <table>
+      <thead><tr><th>Código duplicado</th><th>Descripción</th><th>Precio</th><th>Nuevo código</th></tr></thead>
+      <tbody>
+        ${dupeIndices.map((d, i) => `
+          <tr>
+            <td><span class="badge badge-orange">${d.codigo}</span></td>
+            <td style="font-size:.83rem;color:var(--text-2)">${d.descripcion || '—'}</td>
+            <td>$ ${fmt(d.precio)}</td>
+            <td><input type="text" class="dupe-new-code" data-idx="${d.idx}" placeholder="Nuevo código único" style="width:160px;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:.85rem"></td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+
+  document.getElementById('dupes-apply-error').classList.add('hidden');
+  document.getElementById('dupes-modal').classList.remove('hidden');
+}
+
+function applyDupeRenames() {
+  const inputs = document.querySelectorAll('.dupe-new-code');
+  const errEl = document.getElementById('dupes-apply-error');
+  const renames = [];
+
+  for (const inp of inputs) {
+    const newCode = normalizeCode(inp.value);
+    const idx = parseInt(inp.dataset.idx);
+    if (!newCode) {
+      errEl.textContent = 'Completá todos los campos antes de continuar.';
+      errEl.classList.remove('hidden');
+      inp.focus();
+      return;
+    }
+    // Verificar que el nuevo código no exista ya en vigente (excepto en el propio idx)
+    const exists = S.vigente.some((r, i) => i !== idx && normalizeCode(r.codigo) === newCode);
+    if (exists) {
+      errEl.textContent = `El código "${newCode}" ya existe en el nomenclador. Usá uno diferente.`;
+      errEl.classList.remove('hidden');
+      inp.focus();
+      return;
+    }
+    renames.push({ idx, newCode });
+  }
+
+  // Verificar que los nuevos códigos entre sí no se repitan
+  const newCodes = renames.map(r => r.newCode);
+  if (new Set(newCodes).size !== newCodes.length) {
+    errEl.textContent = 'Hay códigos nuevos repetidos entre las filas. Cada código debe ser único.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  renames.forEach(({ idx, newCode }) => { S.vigente[idx].codigo = newCode; });
+  document.getElementById('dupes-modal').classList.add('hidden');
+  saveState();
+  onMasterLoaded();
+  showToast(`✅ ${renames.length} código(s) renombrado(s) correctamente.`, 'success');
 }
 
 function renderHistTable() {
