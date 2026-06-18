@@ -639,11 +639,22 @@ function checkDuplicateCodes(items) {
 // DELETE VERSION
 // ============================================================
 function deleteVersion(idx) {
+  if (idx === -1) {
+    // versión vigente sintética (no tiene entrada en historial)
+    if (!confirm('¿Eliminar la versión vigente? Se borrará el nomenclador actual.')) return;
+    S.vigente = [];
+    S.meta = { fecha_desde: '', fecha_hasta: '' };
+    S.loaded = false;
+    saveState();
+    renderHistTable();
+    updateStatusBar();
+    showToast('Versión vigente eliminada.', 'success');
+    return;
+  }
   const h = S.historial[idx];
   if (!confirm(`¿Eliminar la versión ${h.version} (${formatDate(h.fecha_desde)}${h.fecha_hasta ? ' - ' + formatDate(h.fecha_hasta) : ' — vigente'})?`)) return;
   const archKey = 'HIST_' + h.fecha_desde + '_' + h.fecha_hasta;
   S.historial.splice(idx, 1);
-  // Re-number
   S.historial.forEach((entry, i) => { entry.version = i + 1; });
   delete S.archived[archKey];
   saveState();
